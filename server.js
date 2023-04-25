@@ -2,6 +2,7 @@ import app from "./app.js";
 
 import { connectDB } from "./config/database.js";
 import cloudinary from "cloudinary";
+import ImageKit from "imagekit";
 import Razorpay from "razorpay";
 import nodeCron from "node-cron";
 import { Stats } from "./models/Stats.js";
@@ -12,6 +13,7 @@ cloudinary.v2.config({
     api_key: process.env.CLOUD_API_KEY,
     api_secret: process.env.CLOUD_API_SECRET,
 });
+
 export const instance = new Razorpay({
     key_id: process.env.RAZORPAY_API_KEY,
     key_secret: process.env.RAZORPAY_API_SECRET,

@@ -4,6 +4,8 @@ import { Stats } from '../models/Stats.js';
 import getDataUri from '../utils/dataUri.js';
 import ErrorHandler from '../utils/errorHandler.js';
 import cloudinary from 'cloudinary';
+import ImageKit from 'imagekit';
+
 export const getAllCourses = catchAsyncError(async(req, res, next) => {
     const keyword = req.query.keyword || "";
     const category = req.query.category || "";
@@ -23,12 +25,20 @@ export const createCourse = catchAsyncError(async(req, res, next) => {
     if (!title || !description || !category || !createdBy) {
         return next(new ErrorHandler("Please enter all fields", 400));
     }
-
+    const imagekit = new ImageKit({
+        publicKey: process.env.IMAGEKIT_PUBLIC_KEY,
+        privateKey: process.env.IMAGEKIT_PRIVATE_KEY,
+        urlEndpoint: process.env.IMAGEKIT_URL_ENDPOINT,
+    });
     const file = req.file;
     // console.log(file);
     const fileUri = getDataUri(file);
 
-    const mycloud = await cloudinary.v2.uploader.upload(fileUri.content);
+    // const mycloud = await cloudinary.v2.uploader.upload(fileUri.content);
+    const mycloud = await imagekit.upload({
+        file: fileUri.content,
+        fileName: file.originalname
+    }, );
 
     await Course.create({
         title,
@@ -36,8 +46,8 @@ export const createCourse = catchAsyncError(async(req, res, next) => {
         category,
         createdBy,
         poster: {
-            public_id: mycloud.public_id,
-            url: mycloud.secure_url,
+            public_id: mycloud.fileId,
+            url: mycloud.url,
         }
 
     });
@@ -62,26 +72,41 @@ export const getCourseLectures = catchAsyncError(async(req, res, next) => {
     });
 });
 // max video size 100MB
+
 export const addLecture = catchAsyncError(async(req, res, next) => {
     const { title, description } = req.body;
     const { id } = req.params;
     const file = req.file;
     const course = await Course.findById(id);
+
     if (!course) {
         return next(new ErrorHandler("Course not found", 404));
     }
+    const imagekit = new ImageKit({
+        publicKey: process.env.IMAGEKIT_PUBLIC_KEY,
+        privateKey: process.env.IMAGEKIT_PRIVATE_KEY,
+        urlEndpoint: process.env.IMAGEKIT_URL_ENDPOINT,
+    });
     const fileUri = getDataUri(file);
 
-    const mycloud = await cloudinary.v2.uploader.upload(fileUri.content, {
-        resource_type: "video",
-    });
+    // const mycloud = await cloudinary.v2.uploader.upload(fileUri.content, {
+    //     resource_type: "video",
+    // });
+    // uload using image kit
+    const resp = await imagekit.upload({
+            file: fileUri.content,
+            fileName: `${Date.now()}-${file.originalname}`,
+        }
+
+    );
+    // console.log(resp);
 
     course.lectures.push({
         title,
         description,
         video: {
-            public_id: mycloud.public_id,
-            url: mycloud.secure_url,
+            public_id: resp.fileId,
+            url: resp.url,
         }
     });
 
@@ -100,12 +125,16 @@ export const deleteCourse = catchAsyncError(async(req, res, next) => {
     if (!course) {
         return next(new ErrorHandler("Course not found", 404));
     }
-    await cloudinary.v2.uploader.destroy(course.poster.public_id);
+    const imagekit = new ImageKit({
+        publicKey: process.env.IMAGEKIT_PUBLIC_KEY,
+        privateKey: process.env.IMAGEKIT_PRIVATE_KEY,
+        urlEndpoint: process.env.IMAGEKIT_URL_ENDPOINT,
+    });
+    // await cloudinary.v2.uploader.destroy(course.poster.public_id);
+    await imagekit.deleteFile(course.poster.public_id);
     for (let i = 0; i < course.lectures.length; i++) {
         const singleLecture = course.lectures[i];
-        await cloudinary.v2.uploader.destroy(singleLecture.video.public_id, {
-            resource_type: "video",
-        });
+        await imagekit.deleteFile(singleLecture.video.public_id);
     }
 
 
@@ -122,13 +151,18 @@ export const deleteLecture = catchAsyncError(async(req, res, next) => {
 
     const course = await Course.findById(courseId);
     if (!course) return next(new ErrorHandler("Course not found", 404));
-
+    const imagekit = new ImageKit({
+        publicKey: process.env.IMAGEKIT_PUBLIC_KEY,
+        privateKey: process.env.IMAGEKIT_PRIVATE_KEY,
+        urlEndpoint: process.env.IMAGEKIT_URL_ENDPOINT,
+    });
     const lecture = course.lectures.find((item) => {
         if (item._id.toString() === lectureId.toString()) return item;
     });
-    await cloudinary.v2.uploader.destroy(lecture.video.public_id, {
-        resource_type: "video",
-    });
+    // await cloudinary.v2.uploader.destroy(lecture.video.public_id, {
+    //     resource_type: "video",
+    // });
+    await imagekit.deleteFile(lecture.video.public_id);
 
     course.lectures = course.lectures.filter((item) => {
         if (item._id.toString() !== lectureId.toString()) return item;
