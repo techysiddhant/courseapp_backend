@@ -23,7 +23,13 @@ app.use(cors({
 
 }));
 
-
+app.use(function(req, res, next) {
+    // update to match the domain you will make the request from
+    res.header("Access-Control-Allow-Origin", process.env.FRONTEND_URL);
+    res.header("Access-Control-Allow-Methods", "GET,HEAD,OPTIONS,POST,PUT");
+    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+    next();
+});
 app.use("/api/v1", course);
 app.use("/api/v1", user);
 app.use("/api/v1", payment);
